@@ -122,6 +122,21 @@ class InventoryController extends Controller
             'warehouse_id' => ['nullable', 'uuid', 'exists:warehouses,id'],
         ]);
 
+        // State management: User role can only ADD (increase quantity), not deduct
+        if ($request->user()->role !== 'admin' && isset($validated['quantity'])) {
+            $currentQuantity = $item->quantity;
+            $newQuantity = $validated['quantity'];
+            
+            if ($newQuantity < $currentQuantity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. Users can only add stock (increase quantity). Only Admin can deduct stock.',
+                    'current_quantity' => $currentQuantity,
+                    'attempted_quantity' => $newQuantity,
+                ], 403);
+            }
+        }
+
         $oldValues = $item->toArray();
         $item->update($validated);
 
@@ -211,6 +226,13 @@ class InventoryController extends Controller
 
     public function removeStock(Request $request, string $id): JsonResponse
     {
+        if ($request->user()->role !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Admin can deduct stock.',
+            ], 403);
+        }
+
         $item = Inventory::find($id);
 
         if (!$item) {

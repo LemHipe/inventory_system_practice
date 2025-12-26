@@ -43,6 +43,13 @@ class DispatchController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if ($request->user()->role !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Admin can create dispatches (deduct stock).',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'inventory_id' => 'required|uuid|exists:inventories,id',
             'warehouse_id' => 'required|uuid|exists:warehouses,id',
