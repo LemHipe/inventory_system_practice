@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\ChatMessageSent;
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Domain\Auth\ValueObjects\UserId;
 use Domain\Chat\Services\ChatService;
 use Domain\Chat\ValueObjects\ChatId;
@@ -59,13 +60,20 @@ class ChatController extends Controller
     {
         $messages = $this->chatService->getMessages(new ChatId($chatId), 50);
 
+        $senderIds = array_unique(array_map(fn ($m) => $m->getSenderId()->getValue(), $messages));
+        $users = User::whereIn('id', $senderIds)->get()->keyBy('id');
+
         return response()->json([
             'success' => true,
-            'data' => array_map(function ($m) {
+            'data' => array_map(function ($m) use ($users) {
+                $senderId = $m->getSenderId()->getValue();
+                $sender = $users->get($senderId);
                 return [
                     'id' => $m->getId()->getValue(),
                     'chat_id' => $m->getChatId()->getValue(),
-                    'sender_id' => $m->getSenderId()->getValue(),
+                    'sender_id' => $senderId,
+                    'sender_email' => $sender?->email ?? 'Unknown',
+                    'sender_name' => $sender?->name ?? 'Unknown',
                     'content' => $m->getContent(),
                     'created_at' => $m->getCreatedAt()->format('Y-m-d H:i:s'),
                 ];
@@ -93,12 +101,16 @@ class ChatController extends Controller
             createdAt: $message->getCreatedAt()->format('Y-m-d H:i:s')
         ));
 
+        $sender = $request->user();
+
         return response()->json([
             'success' => true,
             'data' => [
                 'id' => $message->getId()->getValue(),
                 'chat_id' => $message->getChatId()->getValue(),
                 'sender_id' => $message->getSenderId()->getValue(),
+                'sender_email' => $sender->email,
+                'sender_name' => $sender->name,
                 'content' => $message->getContent(),
                 'created_at' => $message->getCreatedAt()->format('Y-m-d H:i:s'),
             ],

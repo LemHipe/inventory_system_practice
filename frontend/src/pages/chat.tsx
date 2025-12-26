@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Send, Plus, MessageSquare } from 'lucide-react';
+import { Send, Plus, MessageSquare, User } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/auth-context';
@@ -30,6 +30,8 @@ interface Message {
   id: string;
   chat_id: string;
   sender_id: number;
+  sender_email: string;
+  sender_name: string;
   content: string;
   created_at: string;
 }
@@ -190,27 +192,50 @@ export function ChatPage() {
                 <div className="text-sm text-muted-foreground">No messages yet</div>
               ) : (
                 <div className="space-y-4">
-                  {messages?.data?.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        'flex',
-                        msg.sender_id === user?.id ? 'justify-end' : 'justify-start'
-                      )}
-                    >
+                  {messages?.data?.map((msg) => {
+                    const isOwnMessage = msg.sender_id === user?.id;
+                    return (
                       <div
+                        key={msg.id}
                         className={cn(
-                          'max-w-[70%] rounded-lg px-4 py-2',
-                          msg.sender_id === user?.id
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted'
+                          'flex gap-3',
+                          isOwnMessage ? 'justify-end' : 'justify-start'
                         )}
                       >
-                        <p className="text-sm">{msg.content}</p>
-                        <p className="mt-1 text-xs opacity-70">{msg.created_at}</p>
+                        {!isOwnMessage && (
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-600 text-xs font-medium text-white shadow-sm">
+                            {msg.sender_name?.charAt(0).toUpperCase() || 'U'}
+                          </div>
+                        )}
+                        <div
+                          className={cn(
+                            'max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm',
+                            isOwnMessage
+                              ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white'
+                              : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700'
+                          )}
+                        >
+                          {!isOwnMessage && (
+                            <p className="mb-1 text-xs font-medium text-violet-600 dark:text-violet-400">
+                              {msg.sender_email}
+                            </p>
+                          )}
+                          <p className="text-sm leading-relaxed">{msg.content}</p>
+                          <p className={cn(
+                            'mt-1.5 text-[10px]',
+                            isOwnMessage ? 'text-blue-100' : 'text-muted-foreground'
+                          )}>
+                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        {isOwnMessage && (
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-xs font-medium text-white shadow-sm">
+                            {user?.name?.charAt(0).toUpperCase() || 'Y'}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div ref={messagesEndRef} />
                 </div>
               )}
