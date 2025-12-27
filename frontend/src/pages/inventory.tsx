@@ -6,7 +6,7 @@ import {
   ColumnDef,
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Search, X } from 'lucide-react';
+import { Plus, Trash2, Search, X, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,10 @@ export function InventoryPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [editQuantity, setEditQuantity] = useState('');
+  const [csvUploadOpen, setCsvUploadOpen] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [skippedRows, setSkippedRows] = useState<any[]>([]);
+  const [showSkippedDialog, setShowSkippedDialog] = useState(false);
   const [formData, setFormData] = useState({
     product_name: '',
     description: '',
@@ -71,6 +75,7 @@ export function InventoryPage() {
       const response = await api.get('/inventory');
       return response.data;
     },
+    refetchInterval: 5000,
   });
 
   // Client-side filtering with TanStack Query data
@@ -216,6 +221,49 @@ export function InventoryPage() {
     });
   };
 
+  const csvUploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await api.post('/inventory/upload-csv', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
+      toast.success(`${data.created_count} items imported successfully`);
+      if (data.errors?.length > 0) {
+        data.errors.slice(0, 3).forEach((err: string) => toast.error(err));
+      }
+      // Handle skipped duplicates
+      if (data.skipped?.length > 0) {
+        setSkippedRows(data.skipped);
+        toast.warning(`${data.skipped_count} duplicate(s) skipped - click to view details`, {
+          action: {
+            label: 'View',
+            onClick: () => setShowSkippedDialog(true),
+          },
+          duration: 10000,
+        });
+      }
+      setCsvUploadOpen(false);
+      setCsvFile(null);
+    },
+    onError: (err: any) => {
+      const message = err?.response?.data?.message || 'Failed to upload CSV';
+      toast.error(message);
+    },
+  });
+
+  const handleCsvUpload = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!csvFile) return;
+    csvUploadMutation.mutate(csvFile);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -223,13 +271,56 @@ export function InventoryPage() {
           <h2 className="text-3xl font-bold tracking-tight">Inventory</h2>
           <p className="text-muted-foreground">Manage your inventory items</p>
         </div>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Item
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Dialog open={csvUploadOpen} onOpenChange={setCsvUploadOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="mr-2 h-4 w-4" />
+                Mass Upload CSV
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <form onSubmit={handleCsvUpload}>
+                <DialogHeader>
+                  <DialogTitle>Upload CSV</DialogTitle>
+                  <DialogDescription>
+                    Upload a CSV file to bulk import inventory items.
+                    Required columns: product_name, category, quantity, price.
+                    Optional: item_code, description.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="csv_file">CSV File</Label>
+                    <Input
+                      id="csv_file"
+                      type="file"
+                      accept=".csv,.xlsx,.xls"
+                      onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                      required
+                    />
+                  </div>
+                  {csvFile && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: {csvFile.name}
+                    </p>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={csvUploadMutation.isPending || !csvFile}>
+                    {csvUploadMutation.isPending ? 'Uploading...' : 'Upload'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Item
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <form onSubmit={handleSubmit}>
               <DialogHeader>
@@ -297,6 +388,7 @@ export function InventoryPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Dialog open={editOpen} onOpenChange={(open) => {
@@ -333,6 +425,56 @@ export function InventoryPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Skipped Rows Dialog */}
+      <Dialog open={showSkippedDialog} onOpenChange={setShowSkippedDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Skipped Rows ({skippedRows.length})</DialogTitle>
+            <DialogDescription>
+              The following rows were skipped because they already exist in the database.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">Row</TableHead>
+                  <TableHead>Product Name</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Reason</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {skippedRows.map((row, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-mono">{row.row}</TableCell>
+                    <TableCell>{row.product_name}</TableCell>
+                    <TableCell>{row.category}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{row.reason}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              const csvContent = "row,product_name,category,quantity,price,item_code,description,reason\n" +
+                skippedRows.map(r => `${r.row},"${r.product_name}","${r.category}",${r.quantity},${r.price},"${r.item_code}","${r.description}","${r.reason}"`).join("\n");
+              const blob = new Blob([csvContent], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'skipped_rows.csv';
+              a.click();
+              URL.revokeObjectURL(url);
+            }}>
+              Download Skipped Rows CSV
+            </Button>
+            <Button onClick={() => setShowSkippedDialog(false)}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

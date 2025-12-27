@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Imports\InventoryImport;
 use App\Models\ActivityLog;
 use App\Models\Inventory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class InventoryController extends Controller
 {
@@ -140,21 +142,33 @@ class InventoryController extends Controller
         $oldValues = $item->toArray();
         $item->update($validated);
 
+        $freshItem = $item->fresh();
+        $newValues = $freshItem->toArray();
+
+        $description = "Updated inventory item: {$freshItem->product_name}";
+        if (array_key_exists('quantity', $validated)) {
+            $oldQuantity = $oldValues['quantity'] ?? null;
+            $newQuantity = $newValues['quantity'] ?? null;
+            if ($oldQuantity !== null && $newQuantity !== null && $oldQuantity !== $newQuantity) {
+                $description .= " (Qty: {$oldQuantity} → {$newQuantity})";
+            }
+        }
+
         // Log the activity
         ActivityLog::log(
             userId: $request->user()->id,
             action: 'updated',
             modelType: 'Inventory',
             modelId: $item->id,
-            description: "Updated inventory item: {$item->product_name}",
+            description: $description,
             oldValues: $oldValues,
-            newValues: $item->fresh()->toArray(),
+            newValues: $newValues,
             ipAddress: $request->ip()
         );
 
         return response()->json([
             'success' => true,
-            'data' => $item->fresh(),
+            'data' => $freshItem,
         ]);
     }
 
@@ -269,5 +283,66 @@ class InventoryController extends Controller
             'success' => true,
             'data' => $item->fresh(),
         ]);
+    }
+
+    public function uploadCsv(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:5120'],
+        ]);
+
+        try {
+            $import = new InventoryImport();
+            Excel::import($import, $request->file('file'));
+
+            $created = $import->getCreated();
+            $errors = $import->getErrors();
+            $skipped = $import->getSkipped();
+
+            // Log the bulk upload activity
+            if (count($created) > 0) {
+                ActivityLog::log(
+                    userId: $request->user()->id,
+                    action: 'bulk_created',
+                    modelType: 'Inventory',
+                    modelId: null,
+                    description: "Bulk uploaded " . count($created) . " inventory items via CSV/Excel" . (count($skipped) > 0 ? " (" . count($skipped) . " duplicates skipped)" : ""),
+                    newValues: ['count' => count($created), 'items' => array_map(fn($i) => $i->item_code, $created)],
+                    ipAddress: $request->ip()
+                );
+            }
+
+            $message = count($created) . ' items imported successfully';
+            if (count($skipped) > 0) {
+                $message .= '. ' . count($skipped) . ' duplicate(s) skipped';
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'created_count' => count($created),
+                'skipped_count' => count($skipped),
+                'error_count' => count($errors),
+                'skipped' => $skipped,
+                'errors' => $errors,
+                'data' => $created,
+            ]);
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = $e->failures();
+            $errors = [];
+            foreach ($failures as $failure) {
+                $errors[] = "Row {$failure->row()}: {$failure->attribute()} - " . implode(', ', $failure->errors());
+            }
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $errors,
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to import file: ' . $e->getMessage(),
+            ], 400);
+        }
     }
 }

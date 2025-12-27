@@ -83,6 +83,7 @@ export function DispatchesPage() {
       const response = await api.get('/dispatches');
       return response.data;
     },
+    refetchInterval: 5000,
   });
 
   const { data: warehouses } = useQuery<{ success: boolean; data: Warehouse[] }>({

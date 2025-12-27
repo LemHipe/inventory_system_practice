@@ -53,6 +53,12 @@ const actionConfig: Record<string, { label: string; className: string }> = {
   stock_removed: { label: 'Stock Removed', className: 'bg-amber-100 text-amber-700' },
 };
 
+ const asNumberOrNull = (value: unknown): number | null => {
+   if (typeof value === 'number' && Number.isFinite(value)) return value;
+   if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value);
+   return null;
+ };
+
 export function InventoryLogsPage() {
   const [filters, setFilters] = useState({
     action: '',
@@ -73,6 +79,7 @@ export function InventoryLogsPage() {
       const response = await api.get(`/activity-logs?${params.toString()}`);
       return response.data;
     },
+    refetchInterval: 5000,
   });
 
   const formatDate = (dateString: string) => {
@@ -221,7 +228,19 @@ export function InventoryLogsPage() {
                         </span>
                       </TableCell>
                       <TableCell className="max-w-md">
-                        <p className="truncate" title={log.description}>{log.description}</p>
+                        <div>
+                          <p className="truncate" title={log.description}>{log.description}</p>
+                          {(() => {
+                            const oldQty = asNumberOrNull((log.old_values as any)?.quantity);
+                            const newQty = asNumberOrNull((log.new_values as any)?.quantity);
+                            if (oldQty === null || newQty === null || oldQty === newQty) return null;
+                            return (
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                Qty: {oldQty} → {newQty}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

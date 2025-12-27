@@ -70,6 +70,7 @@ export function DispatchLogsPage() {
       const response = await api.get(`/activity-logs?${params.toString()}`);
       return response.data;
     },
+    refetchInterval: 5000,
   });
 
   const formatDate = (dateString: string) => {

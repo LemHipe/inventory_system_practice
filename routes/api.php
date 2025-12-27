@@ -27,6 +27,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('inventory')->group(function () {
         Route::get('/', [InventoryController::class, 'index']);
         Route::post('/', [InventoryController::class, 'store']);
+        Route::post('/upload-csv', [InventoryController::class, 'uploadCsv']);
         Route::get('/{id}', [InventoryController::class, 'show']);
         Route::put('/{id}', [InventoryController::class, 'update']);
         Route::delete('/{id}', [InventoryController::class, 'destroy']);

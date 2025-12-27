@@ -1,0 +1,11 @@
+product_name,category,quantity,price,item_code,description
+Cement Portland 40kg,Building Materials,100,280.00,,High-quality portland cement
+Steel Bar 10mm,Construction,50,450.00,STEEL-001,Deformed steel bar 6m length
+Hollow Blocks 4",Building Materials,500,12.50,,Standard CHB 4 inches
+Plywood Marine 3/4,Wood Products,25,1200.00,,Marine grade plywood
+GI Pipe 1/2",Plumbing,80,185.00,PIPE-001,Galvanized iron pipe
+Paint Latex White 4L,Paints,30,650.00,,Interior latex paint
+Electrical Wire #12,Electrical,100,45.00,,THHN stranded wire per meter
+Roofing Nail 2",Hardware,200,85.00,NAIL-002,Galvanized roofing nails per kg
+Sand Washed,Aggregates,1000,800.00,,Fine sand per cubic meter
+Gravel 3/4,Aggregates,800,950.00,,Crushed gravel per cubic meter
