@@ -6,6 +6,7 @@ class Dispatch
 {
     public function __construct(
         public readonly ?string $id,
+        public readonly ?string $transactionCode,
         public readonly string $inventoryId,
         public readonly string $warehouseId,
         public readonly int $dispatcherId,
@@ -20,6 +21,7 @@ class Dispatch
     ) {}
 
     public static function create(
+        string $transactionCode,
         string $inventoryId,
         string $warehouseId,
         int $dispatcherId,
@@ -29,6 +31,7 @@ class Dispatch
     ): self {
         return new self(
             id: null,
+            transactionCode: $transactionCode,
             inventoryId: $inventoryId,
             warehouseId: $warehouseId,
             dispatcherId: $dispatcherId,
@@ -43,6 +46,7 @@ class Dispatch
     {
         return [
             'id' => $this->id,
+            'transaction_code' => $this->transactionCode,
             'inventory_id' => $this->inventoryId,
             'warehouse_id' => $this->warehouseId,
             'dispatcher_id' => $this->dispatcherId,

@@ -1,6 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  ColumnDef,
+} from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Package, Clock, Filter } from 'lucide-react';
+import { Package, Clock, Filter } from 'lucide-react';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 interface ActivityLog {
   id: string;
@@ -77,6 +84,30 @@ export function InventoryLogsPage() {
       minute: '2-digit',
     });
   };
+
+  // TanStack Table columns definition
+  const columns = useMemo<ColumnDef<ActivityLog>[]>(
+    () => [
+      { accessorKey: 'created_at', header: 'Date & Time' },
+      { accessorKey: 'user', header: 'User' },
+      { accessorKey: 'action', header: 'Action' },
+      { accessorKey: 'description', header: 'Description' },
+    ],
+    []
+  );
+
+  // TanStack Table instance
+  const table = useReactTable({
+    data: data?.data || [],
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+  });
 
   if (error) {
     return (
@@ -165,7 +196,7 @@ export function InventoryLogsPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : data?.data?.length === 0 ? (
+              ) : table.getRowModel().rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                     <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -173,7 +204,8 @@ export function InventoryLogsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                data?.data?.map((log) => {
+                table.getRowModel().rows.map((row) => {
+                  const log = row.original;
                   const config = actionConfig[log.action] || { label: log.action, className: 'bg-gray-100 text-gray-700' };
 
                   return (
@@ -199,10 +231,7 @@ export function InventoryLogsPage() {
           </Table>
         </CardContent>
       </Card>
-
-      {data?.meta && data.meta.total > 0 && (
-        <div className="text-sm text-muted-foreground text-center">Showing {data.data.length} of {data.meta.total} logs</div>
-      )}
+      <DataTablePagination table={table} />
     </div>
   );
 }

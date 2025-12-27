@@ -19,12 +19,23 @@ class EloquentDispatchRepository implements DispatchRepositoryInterface
         return $this->toEntity($dispatch);
     }
 
+    public function findByIdWithRelations(string $id): ?array
+    {
+        $dispatch = Dispatch::with(['inventory', 'warehouse', 'dispatcher'])->find($id);
+
+        if (!$dispatch) {
+            return null;
+        }
+
+        return $this->toArrayWithRelations($dispatch);
+    }
+
     public function findAll(): array
     {
         return Dispatch::with(['inventory', 'warehouse', 'dispatcher'])
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(fn($dispatch) => $this->toEntityWithRelations($dispatch))
+            ->map(fn($dispatch) => $this->toArrayWithRelations($dispatch))
             ->toArray();
     }
 
@@ -34,7 +45,7 @@ class EloquentDispatchRepository implements DispatchRepositoryInterface
             ->where('warehouse_id', $warehouseId)
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(fn($dispatch) => $this->toEntityWithRelations($dispatch))
+            ->map(fn($dispatch) => $this->toArrayWithRelations($dispatch))
             ->toArray();
     }
 
@@ -44,13 +55,14 @@ class EloquentDispatchRepository implements DispatchRepositoryInterface
             ->where('dispatcher_id', $dispatcherId)
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(fn($dispatch) => $this->toEntityWithRelations($dispatch))
+            ->map(fn($dispatch) => $this->toArrayWithRelations($dispatch))
             ->toArray();
     }
 
-    public function save(DispatchEntity $dispatch): DispatchEntity
+    public function save(DispatchEntity $dispatch): array
     {
         $model = Dispatch::create([
+            'transaction_code' => $dispatch->transactionCode,
             'inventory_id' => $dispatch->inventoryId,
             'warehouse_id' => $dispatch->warehouseId,
             'dispatcher_id' => $dispatch->dispatcherId,
@@ -61,10 +73,10 @@ class EloquentDispatchRepository implements DispatchRepositoryInterface
             'dispatched_at' => $dispatch->dispatchedAt,
         ]);
 
-        return $this->toEntity($model);
+        return $this->toArrayWithRelations($model->load(['inventory', 'warehouse', 'dispatcher']));
     }
 
-    public function update(string $id, array $data): ?DispatchEntity
+    public function update(string $id, array $data): ?array
     {
         $dispatch = Dispatch::find($id);
 
@@ -74,7 +86,7 @@ class EloquentDispatchRepository implements DispatchRepositoryInterface
 
         $dispatch->update($data);
 
-        return $this->toEntity($dispatch->fresh());
+        return $this->toArrayWithRelations($dispatch->fresh()->load(['inventory', 'warehouse', 'dispatcher']));
     }
 
     public function delete(string $id): bool
@@ -88,10 +100,27 @@ class EloquentDispatchRepository implements DispatchRepositoryInterface
         return $dispatch->delete();
     }
 
+    public function generateTransactionCode(): string
+    {
+        $dateCode = now()->format('Ymd');
+        $lastDispatch = Dispatch::where('transaction_code', 'like', "DSP-{$dateCode}-%")
+            ->orderBy('transaction_code', 'desc')
+            ->first();
+
+        $sequence = 1;
+        if ($lastDispatch) {
+            $lastSequence = (int) substr($lastDispatch->transaction_code, -4);
+            $sequence = $lastSequence + 1;
+        }
+
+        return sprintf("DSP-%s-%04d", $dateCode, $sequence);
+    }
+
     private function toEntity(Dispatch $model): DispatchEntity
     {
         return new DispatchEntity(
             id: $model->id,
+            transactionCode: $model->transaction_code,
             inventoryId: $model->inventory_id,
             warehouseId: $model->warehouse_id,
             dispatcherId: $model->dispatcher_id,
@@ -106,10 +135,11 @@ class EloquentDispatchRepository implements DispatchRepositoryInterface
         );
     }
 
-    private function toEntityWithRelations(Dispatch $model): array
+    private function toArrayWithRelations(Dispatch $model): array
     {
         return [
             'id' => $model->id,
+            'transaction_code' => $model->transaction_code,
             'inventory_id' => $model->inventory_id,
             'warehouse_id' => $model->warehouse_id,
             'dispatcher_id' => $model->dispatcher_id,
@@ -124,6 +154,7 @@ class EloquentDispatchRepository implements DispatchRepositoryInterface
             'inventory' => $model->inventory ? [
                 'id' => $model->inventory->id,
                 'product_name' => $model->inventory->product_name,
+                'item_code' => $model->inventory->item_code ?? null,
             ] : null,
             'warehouse' => $model->warehouse ? [
                 'id' => $model->warehouse->id,

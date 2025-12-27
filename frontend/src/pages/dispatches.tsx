@@ -1,4 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  ColumnDef,
+} from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Truck, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 interface Dispatch {
   id: string;
@@ -134,6 +141,34 @@ export function DispatchesPage() {
     createMutation.mutate(formData);
   };
 
+  // TanStack Table columns definition
+  const columns = useMemo<ColumnDef<Dispatch>[]>(
+    () => [
+      { accessorKey: 'transaction_code', header: 'Transaction Code' },
+      { accessorKey: 'inventory', header: 'Item' },
+      { accessorKey: 'warehouse', header: 'From Warehouse' },
+      { accessorKey: 'destination', header: 'Destination' },
+      { accessorKey: 'dispatcher', header: 'Dispatcher' },
+      { accessorKey: 'quantity', header: 'Qty' },
+      { accessorKey: 'status', header: 'Status' },
+      { id: 'actions', header: 'Actions' },
+    ],
+    []
+  );
+
+  // TanStack Table instance
+  const table = useReactTable({
+    data: dispatches?.data || [],
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -247,14 +282,15 @@ export function DispatchesPage() {
               <TableRow>
                 <TableCell colSpan={8} className="text-center">Loading...</TableCell>
               </TableRow>
-            ) : dispatches?.data?.length === 0 ? (
+            ) : table.getRowModel().rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center text-muted-foreground">
                   No dispatches found
                 </TableCell>
               </TableRow>
             ) : (
-              dispatches?.data?.map((dispatch) => {
+              table.getRowModel().rows.map((row) => {
+                const dispatch = row.original;
                 const status = statusConfig[dispatch.status];
                 const StatusIcon = status.icon;
                 return (
@@ -307,6 +343,7 @@ export function DispatchesPage() {
           </TableBody>
         </Table>
       </div>
+      <DataTablePagination table={table} />
     </div>
   );
 }

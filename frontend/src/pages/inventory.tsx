@@ -1,6 +1,12 @@
 import { useState, useMemo } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  ColumnDef,
+} from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Search, X, Filter } from 'lucide-react';
+import { Plus, Trash2, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -20,6 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 interface InventoryItem {
   id: string;
@@ -83,6 +90,50 @@ export function InventoryPage() {
   }, [data?.data, searchQuery, selectedCategory]);
 
   const categories = data?.categories || [];
+
+  // TanStack Table columns definition
+  const columns = useMemo<ColumnDef<InventoryItem>[]>(
+    () => [
+      {
+        accessorKey: 'item_code',
+        header: 'Item Code',
+      },
+      {
+        accessorKey: 'product_name',
+        header: 'Product Name',
+      },
+      {
+        accessorKey: 'category',
+        header: 'Category',
+      },
+      {
+        accessorKey: 'quantity',
+        header: 'Quantity',
+      },
+      {
+        accessorKey: 'price',
+        header: 'Price',
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+      },
+    ],
+    []
+  );
+
+  // TanStack Table instance
+  const table = useReactTable({
+    data: filteredData,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+  });
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -381,14 +432,15 @@ export function InventoryPage() {
                   Loading...
                 </TableCell>
               </TableRow>
-            ) : filteredData.length === 0 ? (
+            ) : table.getRowModel().rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
                   {data?.data?.length === 0 ? 'No inventory items found' : 'No items match your filters'}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredData.map((item) => {
+              table.getRowModel().rows.map((row) => {
+                const item = row.original;
                 const isLowStock = item.quantity <= 20;
                 return (
                   <TableRow 
@@ -451,6 +503,7 @@ export function InventoryPage() {
           </TableBody>
         </Table>
       </div>
+      <DataTablePagination table={table} />
     </div>
   );
 }
