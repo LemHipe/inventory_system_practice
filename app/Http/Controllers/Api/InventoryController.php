@@ -44,12 +44,14 @@ class InventoryController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'product_name' => ['required', 'string', 'max:255'],
+            'product_name' => ['required', 'string', 'max:255', 'unique:inventories,product_name'],
             'description' => ['nullable', 'string'],
             'quantity' => ['required', 'integer', 'min:0'],
             'price' => ['required', 'numeric', 'min:0'],
             'category' => ['required', 'string', 'max:255'],
             'warehouse_id' => ['nullable', 'uuid', 'exists:warehouses,id'],
+        ], [
+            'product_name.unique' => 'An item with this product name already exists.',
         ]);
 
         // Generate item code: ITM-YYYYMMDD-XXXX

@@ -156,8 +156,13 @@ export function InventoryPage() {
       setIsOpen(false);
       setFormData({ product_name: '', description: '', quantity: '', price: '', category: '' });
     },
-    onError: () => {
-      toast.error('Failed to create item');
+    onError: (err: any) => {
+      const errors = err?.response?.data?.errors;
+      if (errors?.product_name) {
+        toast.error(errors.product_name[0]);
+      } else {
+        toast.error(err?.response?.data?.message || 'Failed to create item');
+      }
     },
   });
 
