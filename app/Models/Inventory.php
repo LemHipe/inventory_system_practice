@@ -42,4 +42,9 @@ class Inventory extends Model
     {
         return $this->hasMany(Dispatch::class);
     }
+
+    public function priceHistories(): HasMany
+    {
+        return $this->hasMany(PriceHistory::class);
+    }
 }

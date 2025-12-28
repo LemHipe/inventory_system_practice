@@ -33,6 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [InventoryController::class, 'destroy']);
         Route::post('/{id}/add-stock', [InventoryController::class, 'addStock']);
         Route::post('/{id}/remove-stock', [InventoryController::class, 'removeStock']);
+        Route::get('/{id}/price-history', [InventoryController::class, 'priceHistory']);
     });
 
     Route::prefix('chats')->group(function () {

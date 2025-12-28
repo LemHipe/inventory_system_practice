@@ -6,7 +6,7 @@ import {
   ColumnDef,
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Search, X, Upload } from 'lucide-react';
+import { Plus, Trash2, Search, X, Upload, History, TrendingUp, TrendingDown } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,10 @@ export function InventoryPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [editQuantity, setEditQuantity] = useState('');
+  const [editPrice, setEditPrice] = useState('');
+  const [priceChangeReason, setPriceChangeReason] = useState('');
+  const [priceHistoryOpen, setPriceHistoryOpen] = useState(false);
+  const [priceHistoryItem, setPriceHistoryItem] = useState<InventoryItem | null>(null);
   const [csvUploadOpen, setCsvUploadOpen] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [skippedRows, setSkippedRows] = useState<any[]>([]);
@@ -185,25 +189,41 @@ export function InventoryPage() {
     },
   });
 
-  const updateQuantityMutation = useMutation({
-    mutationFn: async (payload: { id: string; quantity: number }) => {
-      const response = await api.put(`/inventory/${payload.id}`, {
-        quantity: payload.quantity,
-      });
+  const updateItemMutation = useMutation({
+    mutationFn: async (payload: { id: string; quantity: number; price?: number; price_change_reason?: string }) => {
+      const data: any = { quantity: payload.quantity };
+      if (payload.price !== undefined) {
+        data.price = payload.price;
+        data.price_change_reason = payload.price_change_reason;
+      }
+      const response = await api.put(`/inventory/${payload.id}`, data);
       return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
-      toast.success('Quantity updated successfully');
+      toast.success('Item updated successfully');
       setEditOpen(false);
       setEditingItem(null);
       setEditQuantity('');
+      setEditPrice('');
+      setPriceChangeReason('');
     },
-    onError: () => {
-      toast.error('Failed to update quantity');
+    onError: (err: any) => {
+      const message = err?.response?.data?.message || 'Failed to update item';
+      toast.error(message);
     },
+  });
+
+  const { data: priceHistoryData, isLoading: priceHistoryLoading } = useQuery({
+    queryKey: ['price-history', priceHistoryItem?.id],
+    queryFn: async () => {
+      if (!priceHistoryItem) return null;
+      const response = await api.get(`/inventory/${priceHistoryItem.id}/price-history`);
+      return response.data;
+    },
+    enabled: !!priceHistoryItem && priceHistoryOpen,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -211,19 +231,32 @@ export function InventoryPage() {
     createMutation.mutate(formData);
   };
 
-  const handleEditQuantity = (item: InventoryItem) => {
+  const handleEditItem = (item: InventoryItem) => {
     setEditingItem(item);
     setEditQuantity(String(item.quantity));
+    setEditPrice(String(item.price));
+    setPriceChangeReason('');
     setEditOpen(true);
   };
 
-  const handleUpdateQuantity = (e: React.FormEvent) => {
+  const handleViewPriceHistory = (item: InventoryItem) => {
+    setPriceHistoryItem(item);
+    setPriceHistoryOpen(true);
+  };
+
+  const handleUpdateItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
-    updateQuantityMutation.mutate({
+    const payload: any = {
       id: editingItem.id,
       quantity: parseInt(editQuantity, 10),
-    });
+    };
+    // Only include price if admin and price changed
+    if (user?.role === 'admin' && parseFloat(editPrice) !== editingItem.price) {
+      payload.price = parseFloat(editPrice);
+      payload.price_change_reason = priceChangeReason;
+    }
+    updateItemMutation.mutate(payload);
   };
 
   const csvUploadMutation = useMutation({
@@ -401,14 +434,16 @@ export function InventoryPage() {
         if (!open) {
           setEditingItem(null);
           setEditQuantity('');
+          setEditPrice('');
+          setPriceChangeReason('');
         }
       }}>
         <DialogContent>
-          <form onSubmit={handleUpdateQuantity}>
+          <form onSubmit={handleUpdateItem}>
             <DialogHeader>
-              <DialogTitle>Edit Quantity</DialogTitle>
+              <DialogTitle>Edit Item</DialogTitle>
               <DialogDescription>
-                Update quantity for {editingItem?.product_name}
+                Update {editingItem?.product_name}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -423,10 +458,37 @@ export function InventoryPage() {
                   required
                 />
               </div>
+              {user?.role === 'admin' && (
+                <>
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit_price">Price</Label>
+                    <Input
+                      id="edit_price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                      required
+                    />
+                  </div>
+                  {parseFloat(editPrice) !== editingItem?.price && (
+                    <div className="grid gap-2">
+                      <Label htmlFor="price_reason">Reason for Price Change (optional)</Label>
+                      <Input
+                        id="price_reason"
+                        placeholder="e.g., Supplier price increase"
+                        value={priceChangeReason}
+                        onChange={(e) => setPriceChangeReason(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={updateQuantityMutation.isPending}>
-                {updateQuantityMutation.isPending ? 'Saving...' : 'Save'}
+              <Button type="submit" disabled={updateItemMutation.isPending}>
+                {updateItemMutation.isPending ? 'Saving...' : 'Save'}
               </Button>
             </DialogFooter>
           </form>
@@ -479,6 +541,82 @@ export function InventoryPage() {
               Download Skipped Rows CSV
             </Button>
             <Button onClick={() => setShowSkippedDialog(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Price History Dialog */}
+      <Dialog open={priceHistoryOpen} onOpenChange={(open) => {
+        setPriceHistoryOpen(open);
+        if (!open) setPriceHistoryItem(null);
+      }}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Price History</DialogTitle>
+            <DialogDescription>
+              {priceHistoryItem?.product_name} - Current Price: ₱{Number(priceHistoryItem?.price || 0).toFixed(2)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto">
+            {priceHistoryLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <span className="text-muted-foreground">Loading...</span>
+              </div>
+            ) : priceHistoryData?.data?.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <History className="h-12 w-12 text-muted-foreground/50 mb-2" />
+                <p className="text-muted-foreground">No price changes recorded</p>
+                <p className="text-xs text-muted-foreground/70">Price history will appear here when changes are made</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {priceHistoryData?.data?.map((history: any) => {
+                  const isIncrease = history.new_price > history.old_price;
+                  const diff = Math.abs(history.new_price - history.old_price);
+                  const percentChange = ((diff / history.old_price) * 100).toFixed(1);
+                  
+                  return (
+                    <div key={history.id} className="rounded-lg border p-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          {isIncrease ? (
+                            <div className="rounded-full bg-red-100 p-1.5 dark:bg-red-900/30">
+                              <TrendingUp className="h-4 w-4 text-red-600 dark:text-red-400" />
+                            </div>
+                          ) : (
+                            <div className="rounded-full bg-green-100 p-1.5 dark:bg-green-900/30">
+                              <TrendingDown className="h-4 w-4 text-green-600 dark:text-green-400" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">₱{Number(history.old_price).toFixed(2)}</span>
+                              <span className="text-muted-foreground">→</span>
+                              <span className="font-medium">₱{Number(history.new_price).toFixed(2)}</span>
+                              <Badge variant={isIncrease ? "destructive" : "default"} className="text-xs">
+                                {isIncrease ? '+' : '-'}{percentChange}%
+                              </Badge>
+                            </div>
+                            {history.reason && (
+                              <p className="text-xs text-muted-foreground mt-1">{history.reason}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>by {history.changed_by_user?.name || 'Unknown'}</span>
+                        <span>{new Date(history.created_at).toLocaleDateString('en-US', { 
+                          month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+                        })}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setPriceHistoryOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -625,8 +763,16 @@ export function InventoryPage() {
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
+                          size="icon"
+                          onClick={() => handleViewPriceHistory(item)}
+                          title="Price History"
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
                           size="sm"
-                          onClick={() => handleEditQuantity(item)}
+                          onClick={() => handleEditItem(item)}
                         >
                           Edit
                         </Button>

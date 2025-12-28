@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Imports\InventoryImport;
 use App\Models\ActivityLog;
 use App\Models\Inventory;
+use App\Models\PriceHistory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -141,11 +142,33 @@ class InventoryController extends Controller
             }
         }
 
+        // Only admin can change price
+        if ($request->user()->role !== 'admin' && isset($validated['price'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Admin can change prices.',
+            ], 403);
+        }
+
         $oldValues = $item->toArray();
+        $oldPrice = (float) $item->price;
+        
         $item->update($validated);
 
         $freshItem = $item->fresh();
         $newValues = $freshItem->toArray();
+        $newPrice = (float) $freshItem->price;
+
+        // Log price history if price changed
+        if (isset($validated['price']) && $oldPrice !== $newPrice) {
+            PriceHistory::create([
+                'inventory_id' => $item->id,
+                'old_price' => $oldPrice,
+                'new_price' => $newPrice,
+                'changed_by' => $request->user()->id,
+                'reason' => $request->input('price_change_reason'),
+            ]);
+        }
 
         $description = "Updated inventory item: {$freshItem->product_name}";
         if (array_key_exists('quantity', $validated)) {
@@ -154,6 +177,9 @@ class InventoryController extends Controller
             if ($oldQuantity !== null && $newQuantity !== null && $oldQuantity !== $newQuantity) {
                 $description .= " (Qty: {$oldQuantity} → {$newQuantity})";
             }
+        }
+        if (isset($validated['price']) && $oldPrice !== $newPrice) {
+            $description .= " (Price: ₱{$oldPrice} → ₱{$newPrice})";
         }
 
         // Log the activity
@@ -171,6 +197,30 @@ class InventoryController extends Controller
         return response()->json([
             'success' => true,
             'data' => $freshItem,
+        ]);
+    }
+
+    public function priceHistory(string $id): JsonResponse
+    {
+        $item = Inventory::find($id);
+
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => 'Not found'], 404);
+        }
+
+        $history = PriceHistory::where('inventory_id', $id)
+            ->with('changedByUser:id,name')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $history,
+            'item' => [
+                'id' => $item->id,
+                'product_name' => $item->product_name,
+                'current_price' => $item->price,
+            ],
         ]);
     }
 
