@@ -28,6 +28,14 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
+interface Warehouse {
+  id: string;
+  name: string;
+  address?: string;
+  city?: string;
+  is_active: boolean;
+}
+
 interface InventoryItem {
   id: string;
   item_code: string;
@@ -37,6 +45,8 @@ interface InventoryItem {
   quantity: number;
   price: number;
   category: string;
+  warehouse_id: string | null;
+  warehouse?: Warehouse;
   created_at: string;
   updated_at: string | null;
 }
@@ -45,6 +55,11 @@ interface InventoryResponse {
   success: boolean;
   data: InventoryItem[];
   categories: string[];
+}
+
+interface WarehouseResponse {
+  success: boolean;
+  data: Warehouse[];
 }
 
 export function InventoryPage() {
@@ -69,6 +84,7 @@ export function InventoryPage() {
     quantity: '',
     price: '',
     category: '',
+    warehouse_id: '',
   });
 
   const queryClient = useQueryClient();
@@ -81,6 +97,16 @@ export function InventoryPage() {
     },
     refetchInterval: 5000,
   });
+
+  const { data: warehousesData } = useQuery<WarehouseResponse>({
+    queryKey: ['warehouses'],
+    queryFn: async () => {
+      const response = await api.get('/warehouses');
+      return response.data;
+    },
+  });
+
+  const warehouses = warehousesData?.data?.filter(w => w.is_active) || [];
 
   // Client-side filtering with TanStack Query data
   const filteredData = useMemo(() => {
@@ -147,9 +173,12 @@ export function InventoryPage() {
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const response = await api.post('/inventory', {
-        ...data,
+        product_name: data.product_name,
+        description: data.description,
         quantity: parseInt(data.quantity),
         price: parseFloat(data.price),
+        category: data.category,
+        warehouse_id: data.warehouse_id,
       });
       return response.data;
     },
@@ -158,7 +187,7 @@ export function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       toast.success('Item created successfully');
       setIsOpen(false);
-      setFormData({ product_name: '', description: '', quantity: '', price: '', category: '' });
+      setFormData({ product_name: '', description: '', quantity: '', price: '', category: '', warehouse_id: '' });
     },
     onError: (err: any) => {
       const errors = err?.response?.data?.errors;
@@ -323,8 +352,9 @@ export function InventoryPage() {
                   <DialogTitle>Upload CSV</DialogTitle>
                   <DialogDescription>
                     Upload a CSV file to bulk import inventory items.
-                    Required columns: product_name, category, quantity, price.
+                    Required columns: product_name, category, quantity, price, warehouse.
                     Optional: item_code, description.
+                    Note: Warehouse must match an existing warehouse name.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -416,6 +446,23 @@ export function InventoryPage() {
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     required
                   />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="warehouse_id">Warehouse *</Label>
+                  <select
+                    id="warehouse_id"
+                    value={formData.warehouse_id}
+                    onChange={(e) => setFormData({ ...formData, warehouse_id: e.target.value })}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    required
+                  >
+                    <option value="">Select a warehouse</option>
+                    {warehouses.map((warehouse) => (
+                      <option key={warehouse.id} value={warehouse.id}>
+                        {warehouse.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <DialogFooter>
@@ -510,6 +557,7 @@ export function InventoryPage() {
                 <TableRow>
                   <TableHead className="w-16">Row</TableHead>
                   <TableHead>Product Name</TableHead>
+                  <TableHead>Warehouse</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Reason</TableHead>
                 </TableRow>
@@ -519,6 +567,7 @@ export function InventoryPage() {
                   <TableRow key={idx}>
                     <TableCell className="font-mono">{row.row}</TableCell>
                     <TableCell>{row.product_name}</TableCell>
+                    <TableCell>{row.warehouse || '-'}</TableCell>
                     <TableCell>{row.category}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{row.reason}</TableCell>
                   </TableRow>
@@ -528,8 +577,8 @@ export function InventoryPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
-              const csvContent = "row,product_name,category,quantity,price,item_code,description,reason\n" +
-                skippedRows.map(r => `${r.row},"${r.product_name}","${r.category}",${r.quantity},${r.price},"${r.item_code}","${r.description}","${r.reason}"`).join("\n");
+              const csvContent = "row,product_name,warehouse,category,quantity,price,item_code,description,reason\n" +
+                skippedRows.map(r => `${r.row},"${r.product_name}","${r.warehouse || ''}","${r.category}",${r.quantity},${r.price},"${r.item_code}","${r.description}","${r.reason}"`).join("\n");
               const blob = new Blob([csvContent], { type: 'text/csv' });
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
@@ -704,6 +753,7 @@ export function InventoryPage() {
             <TableRow>
               <TableHead>Item Code</TableHead>
               <TableHead>Product Name</TableHead>
+              <TableHead>Warehouse</TableHead>
               <TableHead>Category</TableHead>
               <TableHead className="text-right">Quantity</TableHead>
               <TableHead className="text-right">Price</TableHead>
@@ -713,13 +763,13 @@ export function InventoryPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
+                <TableCell colSpan={7} className="text-center">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
                   {data?.data?.length === 0 ? 'No inventory items found' : 'No items match your filters'}
                 </TableCell>
               </TableRow>
@@ -748,6 +798,9 @@ export function InventoryPage() {
                           </span>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{item.warehouse?.name || '-'}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{item.category}</Badge>

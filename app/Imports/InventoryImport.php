@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Inventory;
+use App\Models\Warehouse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
@@ -15,6 +16,7 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
     protected array $created = [];
     protected array $errors = [];
     protected array $skipped = [];
+    protected array $warehouseCache = [];
 
     public function collection(Collection $rows)
     {
@@ -23,9 +25,10 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
 
             try {
                 $productName = trim($row['product_name'] ?? '');
+                $warehouseName = trim($row['warehouse'] ?? '');
 
-                // Check if product_name already exists - skip if duplicate
-                if (Inventory::where('product_name', $productName)->exists()) {
+                // Warehouse is required
+                if (empty($warehouseName)) {
                     $this->skipped[] = [
                         'row' => $rowNumber,
                         'product_name' => $productName,
@@ -34,7 +37,41 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
                         'price' => $row['price'] ?? '',
                         'item_code' => trim($row['item_code'] ?? ''),
                         'description' => trim($row['description'] ?? ''),
-                        'reason' => "Product name '{$productName}' already exists",
+                        'warehouse' => $warehouseName,
+                        'reason' => "Warehouse is required",
+                    ];
+                    continue;
+                }
+
+                // Resolve warehouse_id from warehouse name (with caching)
+                $warehouseId = $this->resolveWarehouseId($warehouseName);
+                if (!$warehouseId) {
+                    $this->skipped[] = [
+                        'row' => $rowNumber,
+                        'product_name' => $productName,
+                        'category' => trim($row['category'] ?? ''),
+                        'quantity' => $row['quantity'] ?? '',
+                        'price' => $row['price'] ?? '',
+                        'item_code' => trim($row['item_code'] ?? ''),
+                        'description' => trim($row['description'] ?? ''),
+                        'warehouse' => $warehouseName,
+                        'reason' => "Warehouse '{$warehouseName}' not found",
+                    ];
+                    continue;
+                }
+
+                // Check if product_name + warehouse_id combination already exists
+                if (Inventory::where('product_name', $productName)->where('warehouse_id', $warehouseId)->exists()) {
+                    $this->skipped[] = [
+                        'row' => $rowNumber,
+                        'product_name' => $productName,
+                        'category' => trim($row['category'] ?? ''),
+                        'quantity' => $row['quantity'] ?? '',
+                        'price' => $row['price'] ?? '',
+                        'item_code' => trim($row['item_code'] ?? ''),
+                        'description' => trim($row['description'] ?? ''),
+                        'warehouse' => $warehouseName,
+                        'reason' => "Product '{$productName}' already exists in warehouse '{$warehouseName}'",
                     ];
                     continue;
                 }
@@ -54,6 +91,7 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
                             'price' => $row['price'] ?? '',
                             'item_code' => $itemCode,
                             'description' => trim($row['description'] ?? ''),
+                            'warehouse' => $warehouseName,
                             'reason' => "Item code '{$itemCode}' already exists",
                         ];
                         continue;
@@ -68,7 +106,7 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
                     'quantity' => (int) $row['quantity'],
                     'price' => (float) $row['price'],
                     'category' => trim($row['category']),
-                    'warehouse_id' => null,
+                    'warehouse_id' => $warehouseId,
                 ]);
 
                 $this->created[] = $inventory;
@@ -94,6 +132,24 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
         return sprintf("ITM-%s-%04d", $dateCode, $sequence);
     }
 
+    protected function resolveWarehouseId(string $warehouseName): ?string
+    {
+        $normalizedName = strtolower($warehouseName);
+        
+        if (isset($this->warehouseCache[$normalizedName])) {
+            return $this->warehouseCache[$normalizedName];
+        }
+
+        $warehouse = Warehouse::whereRaw('LOWER(name) = ?', [$normalizedName])->first();
+        
+        if ($warehouse) {
+            $this->warehouseCache[$normalizedName] = $warehouse->id;
+            return $warehouse->id;
+        }
+
+        return null;
+    }
+
     public function rules(): array
     {
         return [
@@ -103,6 +159,7 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
             'price' => ['required', 'numeric', 'min:0'],
             'item_code' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'warehouse' => ['required', 'string', 'max:255'],
         ];
     }
 
@@ -115,6 +172,7 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
             'quantity.numeric' => 'Quantity must be a number',
             'price.required' => 'Price is required',
             'price.numeric' => 'Price must be a number',
+            'warehouse.required' => 'Warehouse is required',
         ];
     }
 
