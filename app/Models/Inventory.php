@@ -22,6 +22,7 @@ class Inventory extends Model
         'quantity',
         'price',
         'category',
+        'unit',
         'warehouse_id',
     ];
 

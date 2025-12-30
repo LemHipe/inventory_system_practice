@@ -45,6 +45,7 @@ interface InventoryItem {
   quantity: number;
   price: number;
   category: string;
+  unit?: string;
   warehouse_id: string | null;
   warehouse?: Warehouse;
   created_at: string;
@@ -84,6 +85,7 @@ export function InventoryPage() {
     quantity: '',
     price: '',
     category: '',
+    unit: 'pcs',
     warehouse_id: '',
   });
 
@@ -178,6 +180,7 @@ export function InventoryPage() {
         quantity: parseInt(data.quantity),
         price: parseFloat(data.price),
         category: data.category,
+        unit: data.unit,
         warehouse_id: data.warehouse_id,
       });
       return response.data;
@@ -187,7 +190,7 @@ export function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       toast.success('Item created successfully');
       setIsOpen(false);
-      setFormData({ product_name: '', description: '', quantity: '', price: '', category: '', warehouse_id: '' });
+      setFormData({ product_name: '', description: '', quantity: '', price: '', category: '', unit: 'pcs', warehouse_id: '' });
     },
     onError: (err: any) => {
       const errors = err?.response?.data?.errors;
@@ -353,7 +356,7 @@ export function InventoryPage() {
                   <DialogDescription>
                     Upload a CSV file to bulk import inventory items.
                     Required columns: product_name, category, quantity, price, warehouse.
-                    Optional: item_code, description.
+                    Optional: unit (defaults to pcs), item_code, description.
                     Note: Warehouse must match an existing warehouse name.
                   </DialogDescription>
                 </DialogHeader>
@@ -444,6 +447,16 @@ export function InventoryPage() {
                     id="category"
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="unit">Unit of Measurement</Label>
+                  <Input
+                    id="unit"
+                    value={formData.unit}
+                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                    placeholder="pcs / kg / box / liter"
                     required
                   />
                 </div>
@@ -755,6 +768,7 @@ export function InventoryPage() {
               <TableHead>Product Name</TableHead>
               <TableHead>Warehouse</TableHead>
               <TableHead>Category</TableHead>
+              <TableHead>Unit</TableHead>
               <TableHead className="text-right">Quantity</TableHead>
               <TableHead className="text-right">Price</TableHead>
               <TableHead className="w-[100px]">Actions</TableHead>
@@ -763,13 +777,13 @@ export function InventoryPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center">
+                <TableCell colSpan={8} className="text-center">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
                   {data?.data?.length === 0 ? 'No inventory items found' : 'No items match your filters'}
                 </TableCell>
               </TableRow>
@@ -804,6 +818,9 @@ export function InventoryPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{item.category}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{item.unit || 'pcs'}</Badge>
                     </TableCell>
                     <TableCell className={cn(
                       "text-right font-medium",

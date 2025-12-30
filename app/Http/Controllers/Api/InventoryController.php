@@ -50,6 +50,7 @@ class InventoryController extends Controller
             'quantity' => ['required', 'integer', 'min:0'],
             'price' => ['required', 'numeric', 'min:0'],
             'category' => ['required', 'string', 'max:255'],
+            'unit' => ['nullable', 'string', 'max:50'],
             'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
         ], [
             'warehouse_id.required' => 'Warehouse is required.',
@@ -91,6 +92,7 @@ class InventoryController extends Controller
             'quantity' => (int) $validated['quantity'],
             'price' => (float) $validated['price'],
             'category' => $validated['category'],
+            'unit' => $validated['unit'] ?? 'pcs',
             'warehouse_id' => $validated['warehouse_id'],
         ]);
 
@@ -139,6 +141,7 @@ class InventoryController extends Controller
             'quantity' => ['sometimes', 'integer', 'min:0'],
             'price' => ['sometimes', 'numeric', 'min:0'],
             'category' => ['sometimes', 'string', 'max:255'],
+            'unit' => ['nullable', 'string', 'max:50'],
             'warehouse_id' => ['nullable', 'uuid', 'exists:warehouses,id'],
         ]);
 

@@ -26,6 +26,7 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
 
             $productName = trim($row['product_name'] ?? '');
             $warehouseName = trim($row['warehouse'] ?? '');
+            $unit = trim($row['unit'] ?? '');
 
             // Warehouse is required
             if (empty($warehouseName)) {
@@ -100,6 +101,7 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
                     'quantity' => (int) $row['quantity'],
                     'price' => (float) $row['price'],
                     'category' => trim($row['category']),
+                    'unit' => $unit !== '' ? $unit : 'pcs',
                     'warehouse_id' => $warehouseId,
                 ]);
 
@@ -158,6 +160,7 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
             'category' => ['required', 'string', 'max:255'],
             'quantity' => ['required', 'numeric', 'min:0'],
             'price' => ['required', 'numeric', 'min:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
             'item_code' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'warehouse' => ['required', 'string', 'max:255'],
@@ -173,6 +176,7 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
             'quantity.numeric' => 'Quantity must be a number',
             'price.required' => 'Price is required',
             'price.numeric' => 'Price must be a number',
+            'unit.max' => 'Unit must be 50 characters or less',
             'warehouse.required' => 'Warehouse is required',
         ];
     }
