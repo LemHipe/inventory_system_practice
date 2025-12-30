@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Warehouse as WarehouseIcon, MapPin } from 'lucide-react';
+import { Plus, Trash2, Warehouse as WarehouseIcon, MapPin, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,17 @@ interface WarehouseResponse {
 
 export function WarehousesPage() {
   const [isOpen, setIsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [formData, setFormData] = useState({
+    name: '',
+    address: '',
+    city: '',
+    state: '',
+    postal_code: '',
+    phone: '',
+  });
+  const [editFormData, setEditFormData] = useState({
     name: '',
     address: '',
     city: '',
@@ -84,9 +94,44 @@ export function WarehousesPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: typeof editFormData }) => {
+      const response = await api.put(`/warehouses/${id}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] });
+      toast.success('Warehouse updated successfully');
+      setEditOpen(false);
+      setEditingWarehouse(null);
+    },
+    onError: () => {
+      toast.error('Failed to update warehouse');
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createMutation.mutate(formData);
+  };
+
+  const handleEditClick = (warehouse: Warehouse) => {
+    setEditingWarehouse(warehouse);
+    setEditFormData({
+      name: warehouse.name,
+      address: warehouse.address || '',
+      city: warehouse.city || '',
+      state: warehouse.state || '',
+      postal_code: warehouse.postal_code || '',
+      phone: warehouse.phone || '',
+    });
+    setEditOpen(true);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWarehouse) return;
+    updateMutation.mutate({ id: editingWarehouse.id, data: editFormData });
   };
 
   return (
@@ -208,14 +253,23 @@ export function WarehousesPage() {
             <Card key={warehouse.id}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-lg font-semibold">{warehouse.name}</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => deleteMutation.mutate(warehouse.id)}
-                  disabled={deleteMutation.isPending}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleEditClick(warehouse)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deleteMutation.mutate(warehouse.id)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -237,6 +291,88 @@ export function WarehousesPage() {
           ))}
         </div>
       )}
+
+      {/* Edit Warehouse Dialog */}
+      <Dialog open={editOpen} onOpenChange={(open) => {
+        setEditOpen(open);
+        if (!open) setEditingWarehouse(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <form onSubmit={handleEditSubmit}>
+            <DialogHeader>
+              <DialogTitle>Edit Warehouse</DialogTitle>
+              <DialogDescription>Update warehouse details</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit_name">Warehouse Name</Label>
+                <Input
+                  id="edit_name"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  placeholder="Main Warehouse"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit_address">Address</Label>
+                <Input
+                  id="edit_address"
+                  value={editFormData.address}
+                  onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+                  placeholder="123 Storage St"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_city">City</Label>
+                  <Input
+                    id="edit_city"
+                    value={editFormData.city}
+                    onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+                    placeholder="Manila"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_state">State/Province</Label>
+                  <Input
+                    id="edit_state"
+                    value={editFormData.state}
+                    onChange={(e) => setEditFormData({ ...editFormData, state: e.target.value })}
+                    placeholder="Metro Manila"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_postal_code">Postal Code</Label>
+                  <Input
+                    id="edit_postal_code"
+                    value={editFormData.postal_code}
+                    onChange={(e) => setEditFormData({ ...editFormData, postal_code: e.target.value })}
+                    placeholder="1000"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_phone">Phone</Label>
+                  <Input
+                    id="edit_phone"
+                    value={editFormData.phone}
+                    onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                    placeholder="+63 123 456 7890"
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

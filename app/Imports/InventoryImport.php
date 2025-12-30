@@ -5,6 +5,7 @@ namespace App\Imports;
 use App\Models\Inventory;
 use App\Models\Warehouse;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -23,45 +24,37 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
         foreach ($rows as $index => $row) {
             $rowNumber = $index + 2; // +2 because index is 0-based and header is row 1
 
+            $productName = trim($row['product_name'] ?? '');
+            $warehouseName = trim($row['warehouse'] ?? '');
+
+            // Warehouse is required
+            if (empty($warehouseName)) {
+                $this->skipped[] = [
+                    'row' => $rowNumber,
+                    'product_name' => $productName,
+                    'category' => trim($row['category'] ?? ''),
+                    'quantity' => $row['quantity'] ?? '',
+                    'price' => $row['price'] ?? '',
+                    'item_code' => trim($row['item_code'] ?? ''),
+                    'description' => trim($row['description'] ?? ''),
+                    'warehouse' => $warehouseName,
+                    'reason' => "Warehouse is required",
+                ];
+                continue;
+            }
+
+            // Use savepoint for each row to handle PostgreSQL transaction requirements
+            $savepointName = "row_{$index}";
+            
             try {
-                $productName = trim($row['product_name'] ?? '');
-                $warehouseName = trim($row['warehouse'] ?? '');
+                DB::statement("SAVEPOINT {$savepointName}");
 
-                // Warehouse is required
-                if (empty($warehouseName)) {
-                    $this->skipped[] = [
-                        'row' => $rowNumber,
-                        'product_name' => $productName,
-                        'category' => trim($row['category'] ?? ''),
-                        'quantity' => $row['quantity'] ?? '',
-                        'price' => $row['price'] ?? '',
-                        'item_code' => trim($row['item_code'] ?? ''),
-                        'description' => trim($row['description'] ?? ''),
-                        'warehouse' => $warehouseName,
-                        'reason' => "Warehouse is required",
-                    ];
-                    continue;
-                }
-
-                // Resolve warehouse_id from warehouse name (with caching)
+                // Resolve warehouse_id from warehouse name (with caching) - auto-creates if not exists
                 $warehouseId = $this->resolveWarehouseId($warehouseName);
-                if (!$warehouseId) {
-                    $this->skipped[] = [
-                        'row' => $rowNumber,
-                        'product_name' => $productName,
-                        'category' => trim($row['category'] ?? ''),
-                        'quantity' => $row['quantity'] ?? '',
-                        'price' => $row['price'] ?? '',
-                        'item_code' => trim($row['item_code'] ?? ''),
-                        'description' => trim($row['description'] ?? ''),
-                        'warehouse' => $warehouseName,
-                        'reason' => "Warehouse '{$warehouseName}' not found",
-                    ];
-                    continue;
-                }
 
                 // Check if product_name + warehouse_id combination already exists
                 if (Inventory::where('product_name', $productName)->where('warehouse_id', $warehouseId)->exists()) {
+                    DB::statement("ROLLBACK TO SAVEPOINT {$savepointName}");
                     $this->skipped[] = [
                         'row' => $rowNumber,
                         'product_name' => $productName,
@@ -83,6 +76,7 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
                 } else {
                     // Check if item_code already exists
                     if (Inventory::where('item_code', $itemCode)->exists()) {
+                        DB::statement("ROLLBACK TO SAVEPOINT {$savepointName}");
                         $this->skipped[] = [
                             'row' => $rowNumber,
                             'product_name' => $productName,
@@ -109,8 +103,10 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
                     'warehouse_id' => $warehouseId,
                 ]);
 
+                DB::statement("RELEASE SAVEPOINT {$savepointName}");
                 $this->created[] = $inventory;
             } catch (\Exception $e) {
+                DB::statement("ROLLBACK TO SAVEPOINT {$savepointName}");
                 $this->errors[] = "Row {$rowNumber}: " . $e->getMessage();
             }
         }
@@ -142,12 +138,17 @@ class InventoryImport implements ToCollection, WithHeadingRow, WithValidation, S
 
         $warehouse = Warehouse::whereRaw('LOWER(name) = ?', [$normalizedName])->first();
         
-        if ($warehouse) {
-            $this->warehouseCache[$normalizedName] = $warehouse->id;
-            return $warehouse->id;
+        if (!$warehouse) {
+            // Auto-create warehouse if it doesn't exist
+            $warehouse = Warehouse::create([
+                'name' => $warehouseName,
+                'address' => 'To be updated',
+                'is_active' => true,
+            ]);
         }
-
-        return null;
+        
+        $this->warehouseCache[$normalizedName] = $warehouse->id;
+        return $warehouse->id;
     }
 
     public function rules(): array

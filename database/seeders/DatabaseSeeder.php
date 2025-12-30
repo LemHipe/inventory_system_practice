@@ -28,5 +28,9 @@ class DatabaseSeeder extends Seeder
             'password' => 'password',
             'role' => 'user',
         ]);
+
+        $this->call([
+            WarehouseSeeder::class,
+        ]);
     }
 }
