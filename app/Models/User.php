@@ -23,6 +23,8 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'employee_code',
+        'is_active',
     ];
 
     public function isAdmin(): bool

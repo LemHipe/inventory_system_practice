@@ -20,6 +20,8 @@ class DatabaseSeeder extends Seeder
             'email' => 'test_admin@example.com',
             'password' => 'password',
             'role' => 'admin',
+            'employee_code' => 'EMP-001',
+            'is_active' => true,
         ]);
 
         User::factory()->create([
@@ -27,6 +29,8 @@ class DatabaseSeeder extends Seeder
             'email' => 'test_user@example.com',
             'password' => 'password',
             'role' => 'user',
+            'employee_code' => 'EMP-002',
+            'is_active' => true,
         ]);
 
         $this->call([

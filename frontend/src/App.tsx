@@ -12,6 +12,7 @@ import { WarehousesPage } from './pages/warehouses';
 import { DispatchesPage } from './pages/dispatches';
 import { InventoryLogsPage } from './pages/inventory-logs';
 import { DispatchLogsPage } from './pages/dispatch-logs';
+import { UsersPage } from './pages/users';
 import { useAuth } from './contexts/auth-context';
 
 function DefaultRoute() {
@@ -40,6 +41,7 @@ function App() {
           <Route path="dispatches" element={<DispatchesPage />} />
           <Route path="logs/inventory" element={<AdminRoute><InventoryLogsPage /></AdminRoute>} />
           <Route path="logs/dispatch" element={<AdminRoute><DispatchLogsPage /></AdminRoute>} />
+          <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
           <Route path="chat" element={<ChatPage />} />
         </Route>
       </Routes>

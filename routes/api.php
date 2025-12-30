@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\WarehouseController;
 use App\Http\Controllers\Api\DispatchController;
 use App\Http\Controllers\Api\ActivityLogController;
+use App\Http\Controllers\Api\UserController;
 
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
@@ -62,6 +63,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('activity-logs')->group(function () {
         Route::get('/', [ActivityLogController::class, 'index']);
         Route::get('/{id}', [ActivityLogController::class, 'show']);
+    });
+
+    Route::prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index']);
+        Route::post('/', [UserController::class, 'store']);
+        Route::put('/{id}', [UserController::class, 'update']);
+        Route::post('/{id}/toggle-status', [UserController::class, 'toggleStatus']);
     });
 });
 
