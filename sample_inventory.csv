@@ -1,11 +1,11 @@
-product_name,category,quantity,price,unit,warehouse,item_code,description
-Cement Portland 40kg,Building Materials,100,280.00,bag,Main Warehouse,,High-quality portland cement
-Steel Bar 10mm,Construction,50,450.00,pcs,Main Warehouse,STEEL-001,Deformed steel bar 6m length
-Hollow Blocks 4",Building Materials,500,12.50,pcs,Main Warehouse,,Standard CHB 4 inches
-Plywood Marine 3/4,Wood Products,25,1200.00,sheet,Main Warehouse,,Marine grade plywood
-GI Pipe 1/2",Plumbing,80,185.00,pcs,Warehouse 1,PIPE-001,Galvanized iron pipe
-Paint Latex White 4L,Paints,30,650.00,can,Warehouse 1,,Interior latex paint
-Electrical Wire #12,Electrical,100,45.00,meter,Main Warehouse,,THHN stranded wire per meter
-Roofing Nail 2",Hardware,200,85.00,kg,Main Warehouse,NAIL-002,Galvanized roofing nails per kg
-Sand Washed,Aggregates,1000,800.00,cu_m,Warehouse 2,,Fine sand per cubic meter
-Gravel 3/4,Aggregates,800,950.00,cu_m,Warehouse 2,,Crushed gravel per cubic meter
+product_name,category,quantity,unit,price,warehouse,item_code,description
+Cement Portland 40kg,Building Materials,100,bag,280.00,Main Warehouse,,High-quality portland cement
+Steel Bar 10mm,Construction,50,pcs,450.00,Main Warehouse,STEEL-001,Deformed steel bar 6m length
+Hollow Blocks 4",Building Materials,500,pcs,12.50,Main Warehouse,,Standard CHB 4 inches
+Plywood Marine 3/4,Wood Products,25,sheet,1200.00,Main Warehouse,,Marine grade plywood
+GI Pipe 1/2",Plumbing,80,pcs,185.00,Warehouse 1,PIPE-001,Galvanized iron pipe
+Paint Latex White 4L,Paints,30,can,650.00,Warehouse 1,,Interior latex paint
+Electrical Wire #12,Electrical,100,meter,45.00,Main Warehouse,,THHN stranded wire per meter
+Roofing Nail 2",Hardware,200,kg,85.00,Main Warehouse,NAIL-002,Galvanized roofing nails per kg
+Sand Washed,Aggregates,1000,cu_m,800.00,Warehouse 2,,Fine sand per cubic meter
+Gravel 3/4,Aggregates,800,cu_m,950.00,Warehouse 2,,Crushed gravel per cubic meter

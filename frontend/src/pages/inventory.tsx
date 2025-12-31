@@ -355,8 +355,8 @@ export function InventoryPage() {
                   <DialogTitle>Upload CSV</DialogTitle>
                   <DialogDescription>
                     Upload a CSV file to bulk import inventory items.
-                    Required columns: product_name, category, quantity, price, warehouse.
-                    Optional: unit (defaults to pcs), item_code, description.
+                    Required columns: product_name, category, quantity, unit, price, warehouse.
+                    Optional: item_code, description.
                     Note: Warehouse must match an existing warehouse name.
                   </DialogDescription>
                 </DialogHeader>
