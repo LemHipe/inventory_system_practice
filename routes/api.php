@@ -12,6 +12,12 @@ use App\Http\Controllers\Api\DispatchController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\UserController;
 
+// AUTH FLOW OVERVIEW (Sanctum token-based)
+// 1) Client POSTs email/password to /api/auth/login
+// 2) Controller validates input and authenticates the user
+// 3) On success, we create a personal access token and return it
+// 4) Client stores token and calls protected routes with: Authorization: Bearer <token>
+// 5) auth:sanctum middleware reads the token and sets $request->user()
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
@@ -23,6 +29,15 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    // A tiny protected endpoint for learning/testing token auth from the landing page.
+    Route::get('/protected', function (Request $request) {
+        return response()->json([
+            'success' => true,
+            'message' => 'You have access to a protected route!',
+            'user' => $request->user(),
+        ]);
+    });
+
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
     Route::prefix('inventory')->group(function () {

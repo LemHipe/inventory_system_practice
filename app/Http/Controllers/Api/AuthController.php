@@ -19,6 +19,7 @@ class AuthController extends Controller
 
     public function register(Request $request): JsonResponse
     {
+        // FLOW: request -> validate -> domain/auth service -> create Sanctum token -> return JSON
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
@@ -37,6 +38,9 @@ class AuthController extends Controller
         }
 
         $userModel = \App\Models\User::find($result['user']['id']);
+
+        // Sanctum personal access token (PAT). Client should send it as:
+        // Authorization: Bearer <token>
         $token = $userModel?->createToken('api')->plainTextToken;
 
         return response()->json([
@@ -48,6 +52,7 @@ class AuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
+        // FLOW: request -> validate -> auth service verifies credentials -> create token -> return JSON
         $validated = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
@@ -64,6 +69,8 @@ class AuthController extends Controller
         }
 
         $userModel = \App\Models\User::find($result['user']['id']);
+
+        // Create a new token for this login. (Optionally you could revoke old tokens here.)
         $token = $userModel?->createToken('api')->plainTextToken;
 
         return response()->json([
@@ -75,6 +82,7 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
+        // If the request passes auth:sanctum middleware, $request->user() is the authenticated user.
         return response()->json([
             'success' => true,
             'user' => $request->user(),
@@ -83,6 +91,7 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
+        // Deletes only the current token (the one used for this request).
         $request->user()?->currentAccessToken()?->delete();
 
         return response()->json([
